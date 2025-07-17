@@ -12,6 +12,7 @@ export async function middleware(request: NextRequest) {
   if (
     request.nextUrl.pathname.startsWith('/api/auth') ||
     request.nextUrl.pathname === '/' ||
+    request.nextUrl.pathname.startsWith('/auth') ||
     request.nextUrl.pathname.startsWith('/_next') ||
     request.nextUrl.pathname.startsWith('/static')
   ) {
@@ -20,7 +21,8 @@ export async function middleware(request: NextRequest) {
 
   // Redirect to login if not authenticated
   if (!token) {
-    const url = new URL('/', request.url);
+    const url = new URL('/auth/signin', request.url);
+    url.searchParams.set('callbackUrl', request.nextUrl.pathname);
     return NextResponse.redirect(url);
   }
 
@@ -31,12 +33,13 @@ export async function middleware(request: NextRequest) {
 export const config = {
   matcher: [
     /*
-     * Match all request paths except for the ones starting with:
+     * Match all request paths except for:
      * - api/auth (auth endpoints)
+     * - auth (auth pages)
      * - _next/static (static files)
      * - _next/image (image optimization files)
      * - favicon.ico (favicon file)
      */
-    '/((?!api/auth|_next/static|_next/image|favicon.ico).*)',
+    '/((?!api/auth|auth|_next/static|_next/image|favicon.ico).*)',
   ],
 };
