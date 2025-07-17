@@ -1,7 +1,3 @@
-// This file should be deleted as we're no longer using Supabase
-// Consider implementing a different storage solution (e.g., MongoDB, PostgreSQL, or Firebase)
-// for storing timetable data
-
 import { createClient } from '@supabase/supabase-js'
 
 // Initialize Supabase client
@@ -22,8 +18,9 @@ export type User = {
 export type Timetable = {
   id: string
   user_id: string
-  name: string
-  description: string | null
+  file_path: string
+  status: string
+  calendar_synced: boolean
   created_at: string
   updated_at: string
 }

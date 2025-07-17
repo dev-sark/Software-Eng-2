@@ -1,136 +1,109 @@
 'use client';
-
-import { useState, useEffect } from 'react';
-import { supabase } from '@/lib/supabase';
-
-interface Timetable {
-  id: string;
-  user_id: string;
-  file_path: string;
-  status: string;
-  created_at: string;
-  calendar_synced: boolean;
-}
+import { useSession } from 'next-auth/react';
+import { useRouter } from 'next/navigation';
+import { useState } from 'react';
 
 export default function Dashboard() {
-  const [timetables, setTimetables] = useState<Timetable[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string>('');
+  const { data: session, status } = useSession();
+  const router = useRouter();
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
 
-  useEffect(() => {
-    loadTimetables();
-  }, []);
+  // Redirect to login if not authenticated
+  if (status === 'unauthenticated') {
+    router.push('/');
+    return null;
+  }
 
-  const loadTimetables = async () => {
-    try {
-      setLoading(true);
-      const { data, error } = await supabase
-        .from('timetables')
-        .select('*')
-        .order('created_at', { ascending: false });
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setError('');
+    setSuccessMessage('');
+    setUploading(true);
 
-      if (error) throw error;
-      setTimetables(data || []);
-      setError('');
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load timetables');
-    } finally {
-      setLoading(false);
+    const formData = new FormData(e.currentTarget);
+    const file = formData.get('file') as File;
+
+    if (!file) {
+      setError('Please select a file to upload');
+      setUploading(false);
+      return;
     }
-  };
 
-  const deleteTimetable = async (id: string) => {
     try {
-      const { error } = await supabase
-        .from('timetables')
-        .delete()
-        .eq('id', id);
+      const response = await fetch('/api/upload', {
+        method: 'POST',
+        body: formData,
+      });
+      
+      const data = await response.json();
 
-      if (error) throw error;
-      await loadTimetables();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to delete timetable');
+      if (!response.ok) {
+        throw new Error(data.error || 'Upload failed');
+      }
+
+      setSuccessMessage('File uploaded successfully!');
+    } catch (error) {
+      console.error('Upload error:', error);
+      setError(error instanceof Error ? error.message : 'Upload failed');
+    } finally {
+      setUploading(false);
     }
   };
 
   return (
-    <div className="p-8 max-w-6xl mx-auto">
-      <h1 className="text-2xl font-bold mb-6">Timetables Dashboard</h1>
-
-      {error && (
-        <div className="mb-4 p-4 bg-red-100 border border-red-400 rounded">
-          <p className="text-red-700">{error}</p>
+    <div className="min-h-screen bg-gray-900">
+      <main className="container mx-auto px-4 py-8">
+        <div className="max-w-2xl mx-auto">
+          <h1 className="text-4xl font-bold text-purple-500 mb-8">
+            Timetable Upload
+          </h1>
+          
+          <div className="bg-gray-800 rounded-lg p-6 shadow-lg">
+            <h2 className="text-2xl text-white mb-6">Upload Your Timetable</h2>
+            
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div>
+                <input 
+                  type="file" 
+                  name="file"
+                  accept=".jpg,.jpeg,.png,.webp,.pdf"
+                  className="block w-full text-sm text-gray-500
+                    file:mr-4 file:py-2 file:px-4
+                    file:rounded-full file:border-0
+                    file:text-sm file:font-semibold
+                    file:bg-purple-50 file:text-purple-700
+                    hover:file:bg-purple-100"
+                  required
+                />
+              </div>
+              
+              {error && (
+                <div className="text-red-500 text-sm mb-4">
+                  {error}
+                </div>
+              )}
+              
+              {successMessage && (
+                <div className="text-green-500 text-sm mb-4">
+                  {successMessage}
+                </div>
+              )}
+              
+              <button 
+                type="submit"
+                disabled={uploading}
+                className={`w-full py-3 px-4 rounded-full font-semibold 
+                  ${uploading ? 'bg-purple-300 cursor-not-allowed' : 'bg-purple-600 hover:bg-purple-700'}
+                  text-white transition-colors duration-200`}
+              >
+                {uploading ? 'Uploading...' : 'Upload Timetable'}
+              </button>
+            </form>
+          </div>
         </div>
-      )}
-
-      {loading ? (
-        <div className="text-center p-4">Loading...</div>
-      ) : (
-        <div className="overflow-x-auto">
-          <table className="min-w-full bg-white border rounded-lg">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">User</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">File</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200">
-              {timetables.map((timetable) => (
-                <tr key={timetable.id}>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {timetable.id.slice(0, 8)}...
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {timetable.user_id}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {timetable.file_path}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                      timetable.status === 'pending' ? 'bg-yellow-100 text-yellow-800' : 
-                      timetable.status === 'processing' ? 'bg-blue-100 text-blue-800' : 
-                      'bg-green-100 text-green-800'
-                    }`}>
-                      {timetable.status}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {new Date(timetable.created_at).toLocaleString()}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                    <button
-                      onClick={() => deleteTimetable(timetable.id)}
-                      className="text-red-600 hover:text-red-900"
-                    >
-                      Delete
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      <div className="mt-8 space-x-4">
-        <a 
-          href="/test-data" 
-          className="inline-block bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
-        >
-          Add Test Data
-        </a>
-        <button
-          onClick={loadTimetables}
-          className="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600"
-        >
-          Refresh
-        </button>
-      </div>
+      </main>
     </div>
   );
 }
